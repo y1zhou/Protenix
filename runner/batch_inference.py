@@ -44,6 +44,23 @@ from runner.inference import (
 )
 from runner.msa_search import msa_search, update_infer_json
 
+
+def _import_protenixscore_runner():
+    try:
+        from protenixscore.score import run_score
+        return run_score
+    except ImportError:
+        # Try repo-local import when running from source checkout
+        import sys
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[2]
+        if str(repo_root) not in sys.path:
+            sys.path.insert(0, str(repo_root))
+        from protenixscore.score import run_score  # type: ignore
+
+        return run_score
+
 logger = get_logger(__name__)
 
 
@@ -560,9 +577,110 @@ def msa(input, out_dir, msa_server_mode) -> Union[str, dict]:
         raise RuntimeError(f"only support `json` or `fasta` format, but got : {input}")
 
 
+@click.command()
+@click.option("--input", type=str, required=True, help="pdb/cif files or dir to score")
+@click.option("--output", type=str, required=True, help="output directory")
+@click.option("--recursive", is_flag=True, default=False, help="recurse into subdirectories")
+@click.option("--glob", type=str, default="*.pdb,*.cif", help="comma-separated glob patterns")
+@click.option("--use_msa/--no-use_msa", default=False, help="enable MSA features")
+@click.option("--use_esm/--no-use_esm", default=False, help="enable ESM features")
+@click.option("--convert_pdb_to_cif/--no_convert_pdb_to_cif", default=True, help="convert PDB inputs to CIF")
+@click.option("--keep_intermediate/--no_keep_intermediate", default=False, help="keep intermediate files")
+@click.option("--intermediate_dir", type=str, default=None, help="intermediate directory")
+@click.option("--assembly_id", type=str, default=None, help="assembly id for mmCIF expansion")
+@click.option("--altloc", type=str, default="first", help="altloc selection")
+@click.option("--checkpoint_dir", type=str, default=None, help="checkpoint directory")
+@click.option(
+    "--model_name",
+    type=str,
+    default="protenix_base_default_v0.5.0",
+    help="model name",
+)
+@click.option("--device", type=str, default="auto", help="cpu|cuda:N|auto")
+@click.option("--dtype", type=str, default="bf16", help="fp32|bf16|fp16")
+@click.option("--num_workers", type=int, default=4, help="dataloader workers")
+@click.option("--batch_size", type=int, default=1, help="batch size (currently 1)")
+@click.option("--max_tokens", type=int, default=None, help="max tokens")
+@click.option("--max_atoms", type=int, default=None, help="max atoms")
+@click.option("--summary_format", type=str, default="json", help="json|csv")
+@click.option("--aggregate_csv", type=str, default=None, help="aggregate csv output")
+@click.option("--overwrite/--no_overwrite", default=False, help="overwrite outputs")
+@click.option("--failed_log", type=str, default=None, help="failed records log")
+@click.option(
+    "--missing_atom_policy",
+    type=str,
+    default="reference",
+    help="reference|zero|error",
+)
+def score(
+    input,
+    output,
+    recursive,
+    glob,
+    use_msa,
+    use_esm,
+    convert_pdb_to_cif,
+    keep_intermediate,
+    intermediate_dir,
+    assembly_id,
+    altloc,
+    checkpoint_dir,
+    model_name,
+    device,
+    dtype,
+    num_workers,
+    batch_size,
+    max_tokens,
+    max_atoms,
+    summary_format,
+    aggregate_csv,
+    overwrite,
+    failed_log,
+    missing_atom_policy,
+):
+    """
+    score: Score existing structures using the Protenix confidence head.
+    """
+    run_score = _import_protenixscore_runner()
+    from argparse import Namespace
+
+    args = Namespace(
+        command="score",
+        input=input,
+        output=output,
+        recursive=recursive,
+        glob=glob,
+        score_only=True,
+        use_msa=use_msa,
+        use_esm=use_esm,
+        convert_pdb_to_cif=convert_pdb_to_cif,
+        keep_intermediate=keep_intermediate,
+        intermediate_dir=intermediate_dir,
+        assembly_id=assembly_id,
+        altloc=altloc,
+        checkpoint_dir=checkpoint_dir,
+        model_name=model_name,
+        device=device,
+        dtype=dtype,
+        num_workers=num_workers,
+        batch_size=batch_size,
+        max_tokens=max_tokens,
+        max_atoms=max_atoms,
+        write_full_confidence=True,
+        write_summary_confidence=True,
+        summary_format=summary_format,
+        aggregate_csv=aggregate_csv,
+        overwrite=overwrite,
+        failed_log=failed_log,
+        missing_atom_policy=missing_atom_policy,
+    )
+    run_score(args)
+
+
 protenix_cli.add_command(predict)
 protenix_cli.add_command(tojson)
 protenix_cli.add_command(msa)
+protenix_cli.add_command(score)
 
 
 if __name__ == "__main__":

@@ -336,6 +336,8 @@ class Protenix(nn.Module):
         chunk_size: Optional[int] = 4,
         N_model_seed: int = 1,
         symmetric_permutation: SymmetricPermutation = None,
+        score_only: bool = False,
+        x_pred_coords: Optional[torch.Tensor] = None,
     ) -> tuple[dict[str, torch.Tensor], dict[str, Any], dict[str, Any]]:
         """
         Main inference loop (multiple model seeds) for the Alphafold3 model.
@@ -365,6 +367,8 @@ class Protenix(nn.Module):
                 inplace_safe=inplace_safe,
                 chunk_size=chunk_size,
                 symmetric_permutation=symmetric_permutation,
+                score_only=score_only,
+                x_pred_coords=x_pred_coords,
             )
             pred_dicts.append(pred_dict)
             log_dicts.append(log_dict)
@@ -400,6 +404,8 @@ class Protenix(nn.Module):
         inplace_safe: bool = True,
         chunk_size: Optional[int] = 4,
         symmetric_permutation: SymmetricPermutation = None,
+        score_only: bool = False,
+        x_pred_coords: Optional[torch.Tensor] = None,
     ) -> tuple[dict[str, torch.Tensor], dict[str, Any], dict[str, Any]]:
         """
         Main inference loop (single model seed) for the Alphafold3 model.
@@ -437,57 +443,78 @@ class Protenix(nn.Module):
                 del input_feature_dict[key]
         step_trunk = time.time()
         time_tracker.update({"pairformer": step_trunk - step_st})
-        # Sample diffusion
-        # [..., N_sample, N_atom, 3]
-        N_sample = self.configs.sample_diffusion["N_sample"]
-        N_step = self.configs.sample_diffusion["N_step"]
-
-        noise_schedule = self.inference_noise_scheduler(
-            N_step=N_step, device=s_inputs.device, dtype=s_inputs.dtype
-        )
-        cache = dict()
-        if self.enable_diffusion_shared_vars_cache:
-            cache["pair_z"] = autocasting_disable_decorator(
-                self.configs.skip_amp.sample_diffusion
-            )(self.diffusion_module.diffusion_conditioning.prepare_cache)(
-                input_feature_dict["relp"], z, False
+        if score_only:
+            if x_pred_coords is None:
+                raise ValueError("score_only=True requires x_pred_coords")
+            coords = x_pred_coords
+            if coords.dim() == 2:
+                coords = coords.unsqueeze(0)
+            if coords.dim() != 3:
+                raise ValueError(
+                    "x_pred_coords must have shape [N_atom,3] or [N_sample,N_atom,3]"
+                )
+            n_atom = input_feature_dict["atom_to_token_idx"].shape[0]
+            if coords.shape[-2] != n_atom:
+                raise ValueError(
+                    f"x_pred_coords has N_atom={coords.shape[-2]}, expected {n_atom}"
+                )
+            pred_dict["coordinate"] = coords.to(
+                device=s_inputs.device, dtype=s_inputs.dtype
             )
-            cache["p_lm/c_l"] = autocasting_disable_decorator(
-                self.configs.skip_amp.sample_diffusion
-            )(self.diffusion_module.atom_attention_encoder.prepare_cache)(
-                input_feature_dict["ref_pos"],
-                input_feature_dict["ref_charge"],
-                input_feature_dict["ref_mask"],
-                input_feature_dict["ref_element"],
-                input_feature_dict["ref_atom_name_chars"],
-                input_feature_dict["atom_to_token_idx"],
-                input_feature_dict["d_lm"],
-                input_feature_dict["v_lm"],
-                input_feature_dict["pad_info"],
-                "",
-                cache["pair_z"],
-                False,
-            )
+            step_diffusion = time.time()
+            time_tracker.update({"diffusion": step_diffusion - step_trunk})
         else:
-            cache["pair_z"] = None
-            cache["p_lm/c_l"] = [None, None]
-        pred_dict["coordinate"] = self.sample_diffusion(
-            denoise_net=self.diffusion_module,
-            input_feature_dict=input_feature_dict,
-            s_inputs=s_inputs,
-            s_trunk=s,
-            z_trunk=None if cache["pair_z"] is not None else z,
-            pair_z=cache["pair_z"],
-            p_lm=cache["p_lm/c_l"][0],
-            c_l=cache["p_lm/c_l"][1],
-            N_sample=N_sample,
-            noise_schedule=noise_schedule,
-            inplace_safe=inplace_safe,
-            enable_efficient_fusion=self.enable_efficient_fusion,
-        )
+            # Sample diffusion
+            # [..., N_sample, N_atom, 3]
+            N_sample = self.configs.sample_diffusion["N_sample"]
+            N_step = self.configs.sample_diffusion["N_step"]
 
-        step_diffusion = time.time()
-        time_tracker.update({"diffusion": step_diffusion - step_trunk})
+            noise_schedule = self.inference_noise_scheduler(
+                N_step=N_step, device=s_inputs.device, dtype=s_inputs.dtype
+            )
+            cache = dict()
+            if self.enable_diffusion_shared_vars_cache:
+                cache["pair_z"] = autocasting_disable_decorator(
+                    self.configs.skip_amp.sample_diffusion
+                )(self.diffusion_module.diffusion_conditioning.prepare_cache)(
+                    input_feature_dict["relp"], z, False
+                )
+                cache["p_lm/c_l"] = autocasting_disable_decorator(
+                    self.configs.skip_amp.sample_diffusion
+                )(self.diffusion_module.atom_attention_encoder.prepare_cache)(
+                    input_feature_dict["ref_pos"],
+                    input_feature_dict["ref_charge"],
+                    input_feature_dict["ref_mask"],
+                    input_feature_dict["ref_element"],
+                    input_feature_dict["ref_atom_name_chars"],
+                    input_feature_dict["atom_to_token_idx"],
+                    input_feature_dict["d_lm"],
+                    input_feature_dict["v_lm"],
+                    input_feature_dict["pad_info"],
+                    "",
+                    cache["pair_z"],
+                    False,
+                )
+            else:
+                cache["pair_z"] = None
+                cache["p_lm/c_l"] = [None, None]
+            pred_dict["coordinate"] = self.sample_diffusion(
+                denoise_net=self.diffusion_module,
+                input_feature_dict=input_feature_dict,
+                s_inputs=s_inputs,
+                s_trunk=s,
+                z_trunk=None if cache["pair_z"] is not None else z,
+                pair_z=cache["pair_z"],
+                p_lm=cache["p_lm/c_l"][0],
+                c_l=cache["p_lm/c_l"][1],
+                N_sample=N_sample,
+                noise_schedule=noise_schedule,
+                inplace_safe=inplace_safe,
+                enable_efficient_fusion=self.enable_efficient_fusion,
+            )
+
+            step_diffusion = time.time()
+            time_tracker.update({"diffusion": step_diffusion - step_trunk})
         # Distogram logits: log contact_probs only, to reduce the dimension
         pred_dict["contact_probs"] = autocasting_disable_decorator(True)(
             sample_confidence.compute_contact_prob
@@ -762,6 +789,8 @@ class Protenix(nn.Module):
         mode: str = "inference",
         current_step: Optional[int] = None,
         symmetric_permutation: SymmetricPermutation = None,
+        score_only: bool = False,
+        x_pred_coords: Optional[torch.Tensor] = None,
     ) -> tuple[dict[str, torch.Tensor], dict[str, Any], dict[str, Any]]:
         """
         Forward pass of the Alphafold3 model.
@@ -813,6 +842,8 @@ class Protenix(nn.Module):
                 chunk_size=chunk_size,
                 N_model_seed=self.N_model_seed,
                 symmetric_permutation=None,
+                score_only=score_only,
+                x_pred_coords=x_pred_coords,
             )
             log_dict.update({"time": time_tracker})
         elif mode == "eval":

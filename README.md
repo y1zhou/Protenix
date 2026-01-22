@@ -150,6 +150,22 @@ protenix predict --input ./jsons_dir/ --out_dir  ./output
 protenix predict --input examples/example_without_msa.json --out_dir ./output --seeds 101,102 --use_msa true
 ```
 
+### Score Existing Structures (ProtenixScore)
+
+You can score existing PDB/CIF structures without running diffusion using the
+confidence head. This uses a score-only path and accepts single files or
+directories.
+
+```bash
+# score a single structure
+protenix score --input examples/7pzb.cif --output ./score_out
+
+# score a directory of PDB/CIF files (recursively)
+protenix score --input ./structures --output ./score_out --recursive
+```
+
+Outputs include per-structure confidence JSON and a chain ID mapping file.
+
 ### Inference via Bash Script
 Alternatively you can run inference by:
 Alternatively, run inference via script:
