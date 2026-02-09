@@ -63,6 +63,20 @@ pip install protenix
 protenix pred -i examples/input.json -o ./output -n protenix_base_default_v1.0.0
 ```
 
+### 🧪 Score Existing Structures (ProtenixScore)
+
+If you have the external `protenixscore` package installed, you can score
+existing PDB/CIF structures without running diffusion by using the confidence
+head on provided coordinates:
+
+```bash
+# score a single structure
+protenix score --input examples/7pzb.cif --output ./score_out
+
+# score a directory of PDB/CIF files (recursively)
+protenix score --input ./structures --output ./score_out --recursive
+```
+
 #### Key Model Descriptions
 | Model Name | MSA | RNA MSA | Template | Params | Training Data Cutoff | Model Release Date |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
