@@ -1314,7 +1314,7 @@ def inputprep(
 @click.option("--assembly_id", type=str, default=None, help="assembly id for mmCIF expansion")
 @click.option("--altloc", type=str, default="first", help="altloc selection")
 @click.option("--checkpoint_dir", type=str, default=None, help="checkpoint directory")
-@click.option("--model_name", type=str, default="protenix_base_default_v0.5.0", help="model name")
+@click.option("--model_name", type=str, default="protenix_base_default_v1.0.0", help="model name")
 @click.option("--device", type=str, default="auto", help="cpu|cuda:N|auto")
 @click.option("--dtype", type=str, default="bf16", help="fp32|bf16|fp16")
 @click.option("--num_workers", type=int, default=4, help="dataloader workers")
