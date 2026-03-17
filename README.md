@@ -56,6 +56,17 @@ Protenix is built for high-accuracy structure prediction. It serves as an initia
 pip install protenix
 ```
 
+To install the development version, use [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone https://github.com/y1zhou/Protenix
+cd Protenix
+uv sync
+```
+
+Note that with this installation method, you should prefix all following calls with `uv run `,
+e.g. for `protenix pred` you should use `uv run protenix pred ...`.
+
 ### 🧬 Quick Prediction
 
 ```bash
