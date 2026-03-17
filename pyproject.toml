@@ -1,0 +1,54 @@
+[project]
+name = "protenix"
+version = "1.0.8"
+description = "Protenix and ProtenixScore bundled together."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "biopython==1.85",
+    "biotite==1.4.0",
+    "cuequivariance-ops-torch-cu13>=0.9.1",
+    "cuequivariance-torch>=0.9.1",
+    "deepspeed==0.17.5",
+    "fair-esm==2.0.0",
+    "gemmi==0.6.7",
+    "icecream==2.1.7",
+    "ipdb==0.13.13",
+    "ipywidgets==8.1.7",
+    "matplotlib==3.10.5",
+    "ml-collections==1.1.0",
+    "modelcif==1.4",
+    "numpy==2.4.1",
+    "optree==0.17.0",
+    "pandas==2.3.1",
+    "pdbeccdutils==1.0.0",
+    "protobuf==6.31.1",
+    "py3dmol==2.5.2",
+    "pydantic>=2.0.0",
+    "pyyaml==6.0.2",
+    "rdkit==2025.9.3",
+    "scikit-learn==1.7.1",
+    "scikit-learn-extra==0.3.0",
+    "scipy>=1.9.0",
+    "torch==2.10.0",
+    "tqdm==4.67.1",
+    "triton==3.6.0",
+    "wandb==0.21.1",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[project.scripts]
+protenix = "runner.batch_inference:protenix_cli"
+protenixscore = "protenixscore.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = ["protenix", "runner", "protenixscore"]
+module-root = ""
