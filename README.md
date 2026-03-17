@@ -56,11 +56,36 @@ Protenix is built for high-accuracy structure prediction. It serves as an initia
 pip install protenix
 ```
 
+To install the development version, use [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone https://github.com/y1zhou/Protenix
+cd Protenix
+uv sync
+```
+
+Note that with this installation method, you should prefix all following calls with `uv run `,
+e.g. for `protenix pred` you should use `uv run protenix pred ...`.
+
 ### 🧬 Quick Prediction
 
 ```bash
 # Predict structure using a JSON input
 protenix pred -i examples/input.json -o ./output -n protenix_base_default_v1.0.0
+```
+
+### 🧪 Score Existing Structures (ProtenixScore)
+
+If you have the external `protenixscore` package installed, you can score
+existing PDB/CIF structures without running diffusion by using the confidence
+head on provided coordinates:
+
+```bash
+# score a single structure
+protenix score --input examples/7pzb.cif --output ./score_out
+
+# score a directory of PDB/CIF files (recursively)
+protenix score --input ./structures --output ./score_out --recursive
 ```
 
 #### Key Model Descriptions
