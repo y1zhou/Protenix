@@ -1,10 +1,10 @@
 ### Setting up kernels
 
 - **Custom CUDA layernorm kernels** modified from [FastFold](https://github.com/hpcaitech/FastFold) and [Oneflow](https://github.com/Oneflow-Inc/oneflow) accelerate about 30%-50% during different training stages.
-  - **`fast_layernorm` is used by default**, and no explicit setting is required.
-  - If you wish to disable it and use the native PyTorch layernorm, you can set the environment variable to `torch`:
+  - **`fast_layernorm` is not used by default** because of incompatibilities with newer Blackwell GPUs.
+  - If you wish to disable the native PyTorch layernorm and enable it, you can set the environment variable to `fast_layernorm`:
     ```bash
-    export LAYERNORM_TYPE=torch
+    export LAYERNORM_TYPE=fast_layernorm
     ```
   - The kernels will be JIT-compiled when `fast_layernorm` is called for the first time.
 - **Triangle_attention Kernel Options**

@@ -118,7 +118,7 @@ class InferenceRunner(object):
                 "is first called."
             )
 
-        use_fastlayernorm = os.getenv("LAYERNORM_TYPE", "fast_layernorm")
+        use_fastlayernorm = os.getenv("LAYERNORM_TYPE", "torch")
         if use_fastlayernorm == "fast_layernorm":
             logging.info(
                 "Kernels will be compiled when fast_layernorm is first called."
