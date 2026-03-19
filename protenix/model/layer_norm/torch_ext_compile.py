@@ -24,7 +24,8 @@ def compile(
 ) -> Any:
     # Query supported architectures from nvcc (resolved via PyTorch's
     # CUDA_HOME so we use the same toolchain as cpp_extension.load).
-    import subprocess, re, shutil
+    import re, shutil, subprocess
+
     from torch.utils.cpp_extension import CUDA_HOME
 
     _nvcc = shutil.which("nvcc")
@@ -42,7 +43,15 @@ def compile(
     except Exception:
         _supported = {"70", "80", "86", "90"}  # safe defaults
 
-    _wanted = [("70", "70"), ("80", "80"), ("86", "86"), ("89", "89"), ("90", "90"), ("100", "100")]
+    _wanted = [
+        ("70", "70"),
+        ("80", "80"),
+        ("86", "86"),
+        ("89", "89"),
+        ("90", "90"),
+        ("100", "100"),
+        ("120", "120"),
+    ]
     gencode_flags = []
     for compute, sm in _wanted:
         if compute in _supported:
@@ -76,7 +85,8 @@ def compile(
             "-U__CUDA_NO_HALF_CONVERSIONS__",
             "--expt-relaxed-constexpr",
             "--expt-extended-lambda",
-        ] + gencode_flags,
+        ]
+        + gencode_flags,
         verbose=True,
         build_directory=build_directory,
     )

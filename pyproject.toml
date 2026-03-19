@@ -1,9 +1,14 @@
 [project]
 name = "protenix"
-version = "1.0.9"
+dynamic = ["version"]
 description = "Protenix and ProtenixScore bundled together."
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+  { name = "Bytedance Inc.", email = "ai4s-bio@bytedance.com" },
+]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = [
     "biopython==1.85",
     "biotite==1.4.0",
@@ -32,6 +37,7 @@ dependencies = [
     "tqdm==4.67.1",
     "triton==3.6.0",
     "wandb==0.21.1",
+    "setuptools" # for custom kernel building
 ]
 
 [project.optional-dependencies]
@@ -75,14 +81,30 @@ name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
+[project.urls]
+Homepage = "https://github.com/bytedance/Protenix"
+
 [project.scripts]
 protenix = "runner.batch_inference:protenix_cli"
 protenixscore = "protenixscore.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.10.9,<0.11.0"]
-build-backend = "uv_build"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
-[tool.uv.build-backend]
-module-name = ["protenix", "runner", "configs", "protenixscore"]
-module-root = ""
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["protenix*", "runner*", "configs*", "protenixscore*"]
+exclude = ["assets*", "benchmark*", "*.egg-info*"]
+
+[tool.setuptools.package-data]
+protenix = ["model/layer_norm/kernel/*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "protenix.__version__"}
+
+# [tool.uv.build-backend]
+# module-name = ["protenix", "runner", "configs", "protenixscore"]
+# module-root = ""
