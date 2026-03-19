@@ -61,11 +61,11 @@ To install the development version, use [uv](https://docs.astral.sh/uv/):
 ```bash
 git clone https://github.com/y1zhou/Protenix
 cd Protenix
-uv sync
+uv sync --extra cu128  # or cu130, based on your CUDA version
 ```
 
-Note that with this installation method, you should prefix all following calls with `uv run `,
-e.g. for `protenix pred` you should use `uv run protenix pred ...`.
+Note that with this installation method, you should prefix all following calls with `uv run <--extra ...>`,
+e.g. for `protenix pred` you should use `uv run --extra cu128 protenix pred ...`.
 
 ### 🧬 Quick Prediction
 

@@ -30,7 +30,7 @@ from protenix.model.utils import (
     permute_final_dims,
 )
 
-fastln_is_installed = os.getenv("LAYERNORM_TYPE", "fast_layernorm") == "fast_layernorm"
+fastln_is_installed = os.getenv("LAYERNORM_TYPE", "torch") == "fast_layernorm"
 if fastln_is_installed:
     from protenix.model.layer_norm.layer_norm import FusedLayerNorm
 

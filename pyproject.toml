@@ -1,13 +1,12 @@
 [project]
 name = "protenix"
-version = "1.0.8"
+version = "1.0.9"
 description = "Protenix and ProtenixScore bundled together."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "biopython==1.85",
     "biotite==1.4.0",
-    "cuequivariance-ops-torch-cu13>=0.9.1",
     "cuequivariance-torch>=0.9.1",
     "deepspeed==0.17.5",
     "fair-esm==2.0.0",
@@ -30,15 +29,50 @@ dependencies = [
     "scikit-learn==1.7.1",
     "scikit-learn-extra==0.3.0",
     "scipy>=1.9.0",
-    "torch==2.10.0",
     "tqdm==4.67.1",
     "triton==3.6.0",
     "wandb==0.21.1",
 ]
 
+[project.optional-dependencies]
+cpu = [
+  "torch==2.10.0",
+]
+cu128 = [
+  "torch==2.10.0",
+  "cuequivariance-ops-torch-cu12>=0.9.1",
+]
+cu130 = [
+  "torch==2.10.0",
+  "cuequivariance-ops-torch-cu13>=0.9.1",
+]
+[tool.uv]
+conflicts = [
+  [
+    { extra = "cpu" },
+    { extra = "cu128" },
+    { extra = "cu130" },
+  ],
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+  { index = "pytorch-cu130", extra = "cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [project.scripts]
