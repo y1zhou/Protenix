@@ -1256,8 +1256,8 @@ def _load_runner(args) -> object:
         dtype=args.dtype,
         model_name=args.model_name,
         use_msa=args.use_msa,
-        trimul_kernel="torch",
-        triatt_kernel="torch",
+        # trimul_kernel="torch",
+        # triatt_kernel="torch",
     )
     if args.checkpoint_dir:
         runner.configs.load_checkpoint_dir = args.checkpoint_dir

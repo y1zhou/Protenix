@@ -326,6 +326,7 @@ class RequestParser(object):
                     "0",
                     "pairing.a3m",
                 )
+                os.makedirs(os.path.dirname(pairing_msa_fpath), exist_ok=True)
                 with open(pairing_msa_fpath, "w") as f:
                     f.write(">query\n" + query_seqs.split("\n")[-1])
             return res_dirs

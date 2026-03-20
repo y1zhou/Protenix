@@ -193,8 +193,7 @@ def run_mmseqs2_service(
 
     # define path
     path = prefix
-    if not os.path.isdir(path):
-        os.mkdir(path)
+    os.makedirs(path, exist_ok=True)
 
     # call mmseqs2 api
     tar_gz_file = f"{path}/out.tar.gz"
@@ -236,7 +235,7 @@ def run_mmseqs2_service(
                 ID, TIME = out["id"], 0
                 pbar.set_description(out["status"])
                 while out["status"] in ["UNKNOWN", "RUNNING", "PENDING"]:
-                    t = 60
+                    t = 10
                     logger.error(f"Sleeping for {t}s. Reason: {out['status']}")
                     time.sleep(t)
                     out = status(ID)
