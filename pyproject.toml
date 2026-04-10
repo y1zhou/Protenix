@@ -37,7 +37,8 @@ dependencies = [
     "tqdm==4.67.1",
     "triton==3.6.0",
     "wandb==0.21.1",
-    "setuptools" # for custom kernel building
+    "setuptools", # for custom kernel building
+    "networkx>=3.4.2",
 ]
 
 [project.optional-dependencies]
