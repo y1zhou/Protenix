@@ -21,6 +21,7 @@ from biotite.structure import AtomArray
 
 from protenix.data.constraint.constraint_featurizer import ConstraintFeatureGenerator
 from protenix.data.core.featurizer import Featurizer
+from protenix.data.core.geometry_featurizer import GeometryFeaturizer
 from protenix.data.core.parser import AddAtomArrayAnnot
 from protenix.data.inference.json_parser import (
     add_entity_atom_array,
@@ -34,7 +35,10 @@ logger = get_logger(__name__)
 
 
 class SampleDictToFeatures:
-    def __init__(self, single_sample_dict: dict[str, Any]) -> None:
+    def __init__(
+        self, single_sample_dict: dict[str, Any], extract_features_for_tfg: bool = False
+    ) -> None:
+        self.extract_features_for_tfg = extract_features_for_tfg
         self.single_sample_dict = single_sample_dict
         self.input_dict = add_entity_atom_array(single_sample_dict)
         self.entity_poly_type_and_seqs = self.get_entity_poly_type_and_seqs()
@@ -303,7 +307,7 @@ class SampleDictToFeatures:
         atom_array = AddAtomArrayAnnot.add_modified_res_mask(atom_array)
         atom_array = AddAtomArrayAnnot.unique_chain_and_add_ids(atom_array)
         atom_array = AddAtomArrayAnnot.find_equiv_mol_and_assign_ids(
-            atom_array, check_final_equiv=False
+            atom_array, entity_poly_type=entity_poly_type
         )
         atom_array = AddAtomArrayAnnot.add_ref_space_uid(atom_array)
         return atom_array
@@ -389,4 +393,12 @@ class SampleDictToFeatures:
         feature_dict["frame_atom_index"] = torch.Tensor(
             token_array_with_frame.get_annotation("frame_atom_index")
         ).long()
+        if self.extract_features_for_tfg:
+            geometry_featurizer = GeometryFeaturizer(
+                atom_array,
+                ccd_mols=self.input_dict["ccd_mols"],
+                exclude_std_residue=True,
+            )
+            feature_dict.update(geometry_featurizer.get_features())
+
         return feature_dict, atom_array, token_array

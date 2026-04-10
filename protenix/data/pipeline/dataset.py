@@ -162,12 +162,14 @@ class BaseSingleDataset(Dataset):
         """
         indices_list = read_indices_csv(indices_fpath)
         num_data = len(indices_list)
+        self.check_indices_list(indices_list, "initial loading")
         logger.info(f"#Rows in indices list: {num_data}")
         # Filter by pdb_list
         if self.pdb_list is not None:
             pdb_filter_list = set(self.read_pdb_list(pdb_list=self.pdb_list))
             indices_list = indices_list[indices_list["pdb_id"].isin(pdb_filter_list)]
             logger.info(f"[filtered by pdb_list] #Rows: {len(indices_list)}")
+            self.check_indices_list(indices_list, "pdb_list filtering")
 
         # Filter by max_n_token
         if self.max_n_token > 0:
@@ -179,6 +181,9 @@ class BaseSingleDataset(Dataset):
             logger.info(
                 f"[filtered by n_token ({self.max_n_token})] #Rows: {len(indices_list)}"
             )
+            self.check_indices_list(
+                indices_list, f"max_n_token ({self.max_n_token}) filtering"
+            )
 
         if self.min_n_token > 0:
             valid_mask = indices_list["num_tokens"].astype(int) >= self.min_n_token
@@ -188,6 +193,9 @@ class BaseSingleDataset(Dataset):
             logger.info(f"[removed] #PDB: {removed_list['pdb_id'].nunique()}")
             logger.info(
                 f"[filtered by min_n_token ({self.min_n_token})] #Rows: {len(indices_list)}"
+            )
+            self.check_indices_list(
+                indices_list, f"min_n_token ({self.min_n_token}) filtering"
             )
 
         # Filter by exclusion_dict
@@ -202,6 +210,9 @@ class BaseSingleDataset(Dataset):
             indices_list = indices_list[valid_mask].reset_index(drop=True)
             logger.info(
                 f"[Excluded by {col_name} -- {exclusion_list}] #Rows: {len(indices_list)}"
+            )
+            self.check_indices_list(
+                indices_list, f"exclusion_dict ({col_name}) filtering"
             )
         self.print_data_stats(indices_list)
 
@@ -239,17 +250,27 @@ class BaseSingleDataset(Dataset):
                     > 0
                 ]
             else:
+                # Vectorized equivalent of:
+                #   indices_list[indices_list["eval_type"].apply(lambda x: x in EvaluationChainInterface)]
+                # .isin() checks each element of the Series against the set, same semantics as the lambda.
                 indices_list = indices_list[
-                    indices_list["eval_type"].apply(
-                        lambda x: x in EvaluationChainInterface
-                    )
+                    indices_list["eval_type"].isin(EvaluationChainInterface)
                 ]
+            self.check_indices_list(indices_list, "find_eval_chain_interface filtering")
         if self.limits > 0 and len(indices_list) > self.limits:
             logger.info(
                 f"Limit indices list size from {len(indices_list)} to {self.limits}"
             )
             indices_list = indices_list[: self.limits]
+            self.check_indices_list(indices_list, "limits filtering")
         return indices_list
+
+    def check_indices_list(self, indices_list, step_name: str = ""):
+        if len(indices_list) == 0:
+            msg = "After filtering, the dataset is empty."
+            if step_name:
+                msg = f"After {step_name}, the dataset is empty."
+            raise ValueError(msg)
 
     def print_data_stats(self, df: pd.DataFrame) -> None:
         """
@@ -347,7 +368,19 @@ class BaseSingleDataset(Dataset):
             bioassembly_dict_fpath=bioassembly_dict_fpath
         )
         bioassembly_dict["pdb_id"] = sample_indice.pdb_id
-        return sample_indice, bioassembly_dict, bioassembly_dict_fpath
+
+        entity_pair_to_chain_pairs = bioassembly_dict.get("entity_pair_to_chain_pairs")
+        if sample_indice["type"] == "interface" and entity_pair_to_chain_pairs:
+            entity1 = sample_indice.entity_1_id
+            entity2 = sample_indice.entity_2_id
+            chain_pairs = entity_pair_to_chain_pairs.get((entity1, entity2))
+            chain1, chain2 = random.choice(chain_pairs)
+            new_sample_indice = deepcopy(sample_indice)
+            new_sample_indice["chain_1_id"] = chain1
+            new_sample_indice["chain_2_id"] = chain2
+            return new_sample_indice, bioassembly_dict, bioassembly_dict_fpath
+        else:
+            return sample_indice, bioassembly_dict, bioassembly_dict_fpath
 
     @staticmethod
     def _reassign_atom_array_chain_id(atom_array: AtomArray):
@@ -393,7 +426,10 @@ class BaseSingleDataset(Dataset):
 
         # Get shuffled token and atom array
         # Use `CropData.select_by_token_indices` to shuffle safely
-        (token_array, atom_array,) = CropData.select_by_token_indices(
+        (
+            token_array,
+            atom_array,
+        ) = CropData.select_by_token_indices(
             token_array=token_array,
             atom_array=atom_array,
             selected_token_indices=shuffled_token_indices,
@@ -1019,7 +1055,10 @@ def get_weighted_pdb_weight(
 
 
 def calc_weights_for_df(
-    indices_df: pd.DataFrame, beta_dict: dict[str, Any], alpha_dict: dict[str, Any]
+    indices_df: pd.DataFrame,
+    beta_dict: dict[str, Any],
+    alpha_dict: dict[str, Any],
+    eps: float = 1e-9,
 ) -> pd.DataFrame:
     """
     Calculate weights for each example in the dataframe.
@@ -1033,48 +1072,46 @@ def calc_weights_for_df(
         A pandas DataFrame with an column 'weights' containing the calculated weights.
     """
     # Specific to assembly, and entities (chain or interface)
-    e1 = indices_df["entity_1_id"].astype(str).values
-    e2 = indices_df["entity_2_id"].astype(str).values
-    lo = np.where(e1 <= e2, e1, e2)
-    hi = np.where(e1 <= e2, e2, e1)
-    indices_df["pdb_sorted_entity_id"] = (
-        indices_df["pdb_id"].astype(str) + "_"
-        + indices_df["assembly_id"].astype(str) + "_"
-        + lo + "_" + hi
+    df = indices_df.copy()
+
+    df[["entity_1_id", "entity_2_id"]] = (
+        df[["entity_1_id", "entity_2_id"]].astype(object).fillna("None")
     )
 
-    entity_member_num_dict = {}
-    for pdb_sorted_entity_id, sub_df in indices_df.groupby("pdb_sorted_entity_id"):
-        # Number of repeatative entities in the same assembly
-        entity_member_num_dict[pdb_sorted_entity_id] = len(sub_df)
-    indices_df["pdb_sorted_entity_id_member_num"] = (
-        indices_df["pdb_sorted_entity_id"].map(entity_member_num_dict)
+    s = df["pdb_id"].astype(str)
+    if "assembly_id" in df.columns:
+        s = s.str.cat(df["assembly_id"].astype(str), sep="_")
+
+    e1s = df["entity_1_id"].astype(str)
+    e2s = df["entity_2_id"].astype(str)
+    emin = e1s.where(e1s <= e2s, e2s)
+    emax = e2s.where(e1s <= e2s, e1s)
+    df["pdb_sorted_entity_id"] = s.str.cat(emin, sep="_").str.cat(emax, sep="_")
+
+    df["pdb_sorted_entity_id_member_num"] = df.groupby("pdb_sorted_entity_id")[
+        "pdb_id"
+    ].transform("size")
+
+    df["cluster_size"] = df.groupby("cluster_id")["pdb_sorted_entity_id"].transform(
+        "nunique"
+    )
+    beta_dict_bytes = {k.encode(): v for k, v in beta_dict.items()}
+    df["beta"] = df["type"].map({**beta_dict, **beta_dict_bytes}).astype(float)
+
+    weighted_count = np.zeros(len(df), dtype=np.float64)
+    mol1 = df["mol_1_type"]
+    mol2 = df["mol_2_type"]
+    for t, alpha in alpha_dict.items():
+        c_t = mol1.eq(t).to_numpy(dtype=np.int8) + mol2.eq(t).to_numpy(dtype=np.int8)
+        weighted_count += float(alpha) * c_t
+
+    tmp_weights = (
+        df["beta"].to_numpy() * weighted_count / (df["cluster_size"].to_numpy() + eps)
     )
 
-    cluster_size_record = {}
-    for cluster_id, sub_df in indices_df.groupby("cluster_id"):
-        cluster_size_record[cluster_id] = len(set(sub_df["pdb_sorted_entity_id"]))
-
-    weights = []
-    for _, row in indices_df.iterrows():
-        data_type = row["type"]
-        cluster_size = cluster_size_record[row["cluster_id"]]
-        chain_count = {"prot": 0, "nuc": 0, "ligand": 0}
-        for mol_type in [row["mol_1_type"], row["mol_2_type"]]:
-            if chain_count.get(mol_type) is None:
-                continue
-            chain_count[mol_type] += 1
-        # Weight specific to (assembly, entity(chain/interface))
-        weight = get_weighted_pdb_weight(
-            data_type=data_type,
-            cluster_size=cluster_size,
-            chain_count=chain_count,
-            beta_dict=beta_dict,
-            alpha_dict=alpha_dict,
-        )
-        weights.append(weight)
-    indices_df["weights"] = weights / indices_df["pdb_sorted_entity_id_member_num"]
-    return indices_df
+    df["tmp_weights"] = tmp_weights  # do not use this
+    df["weights"] = df["tmp_weights"] / df["pdb_sorted_entity_id_member_num"]
+    return df
 
 
 def get_sample_weights(

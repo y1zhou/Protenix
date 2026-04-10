@@ -14,17 +14,22 @@
 
 
 import os
-from typing import Any
+from typing import Any, Optional
 
 from torch.utils.cpp_extension import load
 
 
 def compile(
-    name: str, sources: list[str], extra_include_paths: list[str], build_directory: str
+    name: str,
+    sources: list[str],
+    extra_include_paths: list[str],
+    build_directory: Optional[str] = None,
 ) -> Any:
     # Query supported architectures from nvcc (resolved via PyTorch's
     # CUDA_HOME so we use the same toolchain as cpp_extension.load).
-    import re, shutil, subprocess
+    import re
+    import shutil
+    import subprocess
 
     from torch.utils.cpp_extension import CUDA_HOME
 
